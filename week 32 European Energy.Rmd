@@ -1,0 +1,244 @@
+---
+title: "week 32 European Energy"
+author: "Alonso Cordova"
+date: "8/3/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Week 32 European Energy Gneration
+This script is designed to compare energy usage by source across time. Each plot will contain information for a given country.
+
+# Steps
+- Format data so we have the percentages we need to plot
+- Create make.bar function
+- Apply make.bar in for-loop sequence
+
+Load Packages
+```{r}
+
+library(tidyverse)
+library(ggplot2)
+library(ggtext)
+library(cowplot)
+library(skimr)
+```
+
+
+
+
+Write data we pulled
+```{r}
+energy_types <- read_csv("energy_types.csv")
+```
+
+
+
+
+
+Assign df
+```{r}
+
+df <- energy_types %>% rename(year_2016 = '2016',
+                              year_2017 = '2017',
+                              year_2018 = '2018')
+
+skim(energy_types)
+
+
+
+df_nations <- df %>% group_by(type) %>% 
+  summarise(year_2016 = sum(year_2016),
+            year_2017 = sum(year_2017),
+            year_2018 = sum(year_2018)) %>% ungroup()
+
+
+df_nations <- df_nations %>% mutate(X1 = '99',
+                                    country = 'ZZ',
+                                    country_name = 'European Countries',
+                                    level = 'level 99') %>%
+                            select(X1,country,country_name, type,level,everything()) 
+
+df <- rbind(df,df_nations)
+
+```
+
+
+
+
+
+Format Data
+
+```{r}
+
+
+# Adding total power used per year
+df_country_sum <- df %>% group_by(country) %>% 
+  summarise(sum_2016 = sum(year_2016),
+            sum_2017 = sum(year_2017),
+            sum_2018 = sum(year_2018)) %>% ungroup()
+
+
+
+# join two df so we can get percentages
+df_plot <- left_join(df,df_country_sum, by = c("country" = "country"))
+
+
+
+
+# Useful if we want to plot percentages
+df_plot <- df_plot %>% mutate('2016' = round((year_2016/sum_2016)*100,0),
+                              '2017' = round((year_2017/sum_2017)*100,0),
+                              '2018' = round((year_2018/sum_2018)*100,0)) %>% 
+                       select(1:4,'2016','2017','2018')
+
+
+
+
+# Going to go for counting power used across year 
+df_plot <- gather(df_plot, year, cnt,5:7)
+
+
+df_plot$country_indx <- df_plot %>%  group_indices(country_name)
+df_plot$type_indx <- df_plot %>%  group_indices(type)
+
+```
+
+
+
+
+
+
+Make plot function
+```{r}
+  
+vec_clr1 <- c("#E6E6FA","#B0C4DE", "slate gray")
+
+
+make.bar <- function(country_bar,code) {
+  
+  
+to_plot <- df_plot %>% filter(code == type_indx & country_bar == country_name)
+  
+
+  
+n_max <- max(to_plot$cnt)
+
+bar_graph <- ggplot(to_plot, aes(x = year, y = cnt, fill = year)) +  
+
+# Add bar aesthetic
+  geom_bar(stat = 'identity', 
+           color = 'black',
+           alpha = .5, 
+           width = 1) +  #.75
+# Manually adding Bar color  
+  scale_fill_manual( values = vec_clr1) +
+ 
+# Adding cnt value above bars  
+  geom_text(label = to_plot$cnt,
+          vjust = -1,
+          fontface = 'bold') +
+
+# Label Title, x-axis, and y axis
+  labs(title = to_plot$type) +
+  xlab("") +
+  ylab("") +
+
+# Setting Theme  
+  theme_bw() +
+
+# Setting Scale parameter  
+  scale_x_discrete() +
+  scale_y_continuous(limits = c(0,112),expand = c(0,0)) +  
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.title       =  element_text(lineheight = 1.1, size = 10, vjust = -2, face = 'bold'),
+    axis.line        = element_line(size = .5, colour = "black", linetype = 1),
+    legend.title     = element_blank(),
+    legend.position = "none",
+    axis.text.y      = element_blank(),
+    axis.text.x      = element_text(face = 'bold', size = 12),
+    axis.ticks.y = element_blank(),
+
+  plot.margin = unit(c(.0, .0 , .50, .0), 'in')  
+  )
+
+}
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+## 9. Create country vector
+vec_country <- df_plot %>%
+  distinct(country_name) %>% 
+  arrange(country_name) %>% 
+#  top_n(5) %>% 
+  unlist(use.names = FALSE) 
+
+
+
+for (i in seq_along(vec_country)){               
+  country_bar <- vec_country[i] 
+  
+print(i)
+                  
+  p1 <- make.bar(country_bar,"1")                  
+  p2 <- make.bar(country_bar,"2")
+  p3 <- make.bar(country_bar,"3")
+  p4 <- make.bar(country_bar,"4")
+  p5 <- make.bar(country_bar,"5")
+  p6 <- make.bar(country_bar,"6")
+  p7 <- make.bar(country_bar,"7")
+  p8 <- make.bar(country_bar,"8")
+ 
+
+
+plt <- plot_grid(p1,p3,p4,p8,
+                 p7,p2,p6,p5,
+                 nrow = 2, ncol = 4)
+
+
+title1 <- ggdraw() + draw_label(paste0(country_bar,': Electricity Production by Source, 2016 to 2018: \nPercent (%) of Total Energy Usage (GW)'),
+              size = 11,
+              fontface = 'bold',
+              x = 0,
+              hjust = 0,
+              vjust = .25)
+    
+    
+plots <- plot_grid(title1, plt, ncol =1,  rel_heights = c(0.05, .90))
+plots
+
+ plots <- add_sub(plots, paste("Data: Eurostat | Plot: Alocord"), 
+                   size = 10, colour = 'black', x = .825, vjust = .1, hjust = 0)
+
+
+
+ggsave(paste0('European Energy Usage ', country_bar, '.png'), plots, width = 11, height = 8)
+
+ 
+}
+
+
+```
+
+
+
